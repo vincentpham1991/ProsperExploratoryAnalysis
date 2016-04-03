@@ -1,0 +1,239 @@
+---
+title: "Prosper Report"
+author: "Vincent Pham"
+date: "August 10, 2015"
+output:
+  html_document:
+    theme: united
+    toc: yes
+  pdf_document:
+    toc: yes
+header-includes:
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot[CO,CE]{Data Source from Prosper}
+- \fancyfoot[LE,RO]{\thepage}
+---
+
+\pagebreak
+
+# Questions of interests
+
+* How does Prosper's borrowers base change over time? If Prosper is successful, we would expect an increase in borrowers base as well as an increase in Loan Amount borrowed. 
+
+* How does the Borrower's APR change? Does APR increase/decrease affect the number of borrower's? 
+
+* How does Prosper's lenders change over time? 
+
+* Is there a correlation between Prosper's score and the Borrower's APR? Like any money lending, it is expected to have a gap between high risk lending versus low risk lending.
+
+* How do the students' loan amount compare against each other? One would suspect that they would be almost similar since they would surely borrow to pay for tuition, which is a fixed rate accross grade level. But community college student should also borrow less since their tuition is less. 
+
+* How does Prosper's score correspond to the Credit Score? Is one score a better predictor than the other?
+
+* What is signal of delinquencies? Can you tell by looking at the scores? Or by the Occupation? Or by age?
+
+* Why do Doctor's ask for loans? Is it for a new car? Or maybe it's for medical needs?
+
+* Does Reccomendation effects the size of the loan received or the number of investors?
+
+
+__The first five questions will be analyzed in this report.__
+
+\pagebreak
+
+# Time-series: Average loan amount and number of borrowers
+
+```{r, echo = F, warning = F, message = F}
+library(ggplot2)
+library(lubridate)
+library(zoo)
+library(scales)
+df <- read.csv("hw5-prosperLoanData.csv")
+s <- c("LoanOriginationDate", "LoanOriginalAmount", "BorrowerAPR", "Investors","dates","month","year")
+df$dates <- as.Date(df$LoanOriginationDate, "%Y-%m-%d")
+df$year <- year(df$dates)
+df$month <- month(df$dates)
+df_tmp <- df[,s]
+
+df_agg <- aggregate(df_tmp, by = list(df_tmp$year, df_tmp$month),
+                    FUN = mean, na.rm = T)
+df_agg2 <- aggregate(df_tmp, by = list(df_tmp$year, df_tmp$month), 
+                     FUN = length)
+df_agg2 <- df_agg2[,c("Group.1","Group.2","LoanOriginalAmount")]
+names(df_agg2) <- c("year", "month", "number")
+df_agg <- merge(df_agg, df_agg2, by = c("year", "month"))
+df_agg$date <- as.Date(as.yearmon(paste0(df_agg$year,"-",df_agg$month)))
+df_agg <- df_agg[df_agg$dates < "2014-03-01",] # remove march 2014 data
+
+p <- ggplot(df_agg, aes(x = date, y = LoanOriginalAmount))
+p <- p + geom_point(shape = 21, aes(size = number), color = "blue",
+                    fill = "white")
+p <- p + ggtitle("Average Loan Amount, Nov 05' - Feb 14'")
+p <- p + labs(x = "Date", y = "Average Loan Amount ($)", 
+              size = "total investors")
+p <- p + scale_x_date(breaks = date_breaks("year"), labels = date_format("%Y"))
+p <- p + geom_vline(xintercept = as.numeric(as.Date("2009-05-01")), 
+                    linetype = 8, color = "red")
+p <- p + geom_vline(xintercept = as.numeric(as.Date("2008-10-01")), 
+                    linetype = 8, color = "red")
+p <- p + theme_bw()
+plot(p)
+```
+
+Prosper started out with an average of $3700 across 13 borrowers. But it began to grow for 2 years, and the affect of the 2009 financial is noticable. In fact, there was 6 month of inactivity around the beginning of 2009. Loans were continued at a lower level then originally, but the average loan amount increased over time. The amount of loans given though though only remained below 2000 before 2013. 2013 saw a rapid increase in in loans given amounts topping 5000. You can not infer what caused this result, but a hypothesis is that a resurgence of investor's confidence and perhaps lower interests rates increased allowed more loans to be allotted. Regardless, these numbers are positive for Prosper since number of Borrowers and Loan Size have increased dramatically. 
+
+\pagebreak
+
+# Time-series: Average Borrower's APR and number of borrowers
+
+```{r, echo = F, warning = F, message = F}
+p <- ggplot(df_agg, aes(x = date, y = BorrowerAPR))
+p <- p + geom_point(shape = 21, aes(size = number), color = "blue", fill = "white")
+p <- p + ggtitle("Average Borrower's APR, Nov 05' - Feb 14'")
+p <- p + labs(x = "Date", y = "Average Borrower's APR", 
+              size = "loans given")
+p <- p + scale_x_date(breaks = date_breaks("year"), labels = date_format("%Y"))
+p <- p + geom_vline(xintercept = as.numeric(as.Date("2009-05-01")),
+                    linetype = 8, color = "red")
+p <- p + geom_vline(xintercept = as.numeric(as.Date("2008-10-01")), 
+                    linetype = 8, color = "red")
+p <- p + theme_bw()
+p
+
+```
+
+The data above showed the the first average borrower's APR was a little below 10%. increased to around 20% shortly. This can be seen as Prosper trying to attract customers to its new business then adjusting to the market rate once it sets up a reputation. My best guess, although it can't be confirmed through this graph, is that the Borrower's APR is driven mainly by the market and by other competitors since the APR pretty much picked up where it left off when it stopped activities in 2009. Although it is likely that a lower interest rate attracted more borrowers, there could be other factors at play as well since the 2008 and 2014 period had about the same average APR but a lower borrower base.  
+
+\pagebreak
+
+# Time-series: Average number of investor's lending and number of investors
+
+```{r, echo = F, warning = F, message = F}
+df_tmp$InvestorsAmount <- df_tmp$LoanOriginalAmount/df_tmp$Investors
+df_agg <- aggregate(df_tmp, by = list(df_tmp$year, df_tmp$month), FUN = mean, na.rm = T)
+df_agg2 <- aggregate(df_tmp$Investors, by = list(df_tmp$year, df_tmp$month), FUN = sum, na.rm = T)
+
+names(df_agg2) <- c("year", "month", "number")
+df_agg <- merge(df_agg, df_agg2, by = c("year", "month"))
+df_agg$date <- as.Date(as.yearmon(paste0(df_agg$year,"-",df_agg$month)))
+df_agg <- df_agg[df_agg$dates < "2014-03-01",] # remove march 2014 data
+
+p <- ggplot(df_agg, aes(x = date, y = InvestorsAmount))
+p <- p + geom_point(size = 3, aes(color = number))
+p <- p + ggtitle("Average Borrower's APR, Nov 05' - Feb 14'")
+p <- p + labs(x = "Date", y = "Average Investor's Amount ($)", 
+              color = "loans given")
+p <- p + scale_x_date(breaks = date_breaks("year"), labels = date_format("%Y"))
+p <- p + geom_vline(xintercept = as.numeric(as.Date("2009-05-01")),
+                    linetype = 8, color = "red")
+p <- p + geom_vline(xintercept = as.numeric(as.Date("2008-10-01")), 
+                    linetype = 8, color = "red")
+p <- p + theme_bw() 
+p <- p +scale_color_gradient(low="cyan", high="black")
+p
+```
+
+What is interesting about this graph is that it showing that it takes time to gain investor's confidence and have more loans invested. The data of the loan given is an aggregate of the investor data across all loans, so it is difficult to tell the amount of repeated investors. For example, alouth the amount of laon given migh be 5000, it might only be by a few people investing in several loans (diversfying their portfolia). Regardless, the average loans invested over the years have been consistent: a very small microloans of about $100 per investor per loan. There has been a huge surge in 2013 though in the amount of loans given and the amount of average amount invested. Lower Borrower's APR doesn't make sense since that would mean a smaller share for the lender, but the simple explanation of supply and demand is the best answers. A huge amount of people who needs to take out huge loan while the interest rate is low and a large pool of investors is a possible explanation for this huge increase. 
+
+\pagebreak
+
+# Correlation between Prosper Scores and Borrower's APR
+
+```{r,  echo = F, warning = F, message = F, fig.width = 12, fig.height = 5}
+s <- c("Term","BorrowerAPR","ProsperScore","dates","month","year")
+
+df_tmp <- df[df$ProsperScore == 1 | df$ProsperScore == 10 | df$ProsperScore == 5,s]
+df_tmp$Term <- factor(df_tmp$Term)
+levels(df_tmp$Term) <- c("1 year loan", "3 year loan", "5 year loan")
+df_agg <- aggregate(df_tmp, by = list(df_tmp$year, df_tmp$month, df_tmp$ProsperScore,
+                                      df_tmp$Term), FUN = mean, na.rm = T)
+df_agg$scores <- "worst (1)"
+df_agg$scores[df_agg$ProsperScore == 10] <- "best (10)"
+df_agg$scores[df_agg$ProsperScore == 5] <- "middle (5)"
+
+p <- ggplot(df_agg, aes(x = dates, y = BorrowerAPR, color = scores))
+p <- p + geom_line() + geom_point()
+p <- p + ggtitle("Average Borrower's APR, Jul 09' - Mar 14'")
+p <- p + labs(x = "Date", y = "Average Borrower's APR", 
+              color = "Prosper Score")
+p <- p + theme_bw() 
+p <- p + scale_x_date(breaks = date_breaks("year"), labels = date_format("%y'"))
+p
+
+```
+
+
+```{r, echo = F, message = F, warning = F, fig.width = 11, fig.heigh = 5}
+p <- ggplot(df_agg, aes(x = dates, y = BorrowerAPR, color = scores))
+p <- p + geom_line() + geom_point()
+p <- p + ggtitle("Average Borrower's APR by Term Loan, Jul 09' - Mar 14'")
+p <- p + labs(x = "Date", y = "Average Borrower's APR", 
+              color = "Prosper Score")
+p <- p + theme_bw() 
+p <- p + facet_wrap(~Group.4)
+p <- p + scale_x_date(breaks = date_breaks("year"), labels = date_format("%y'"))
+p
+```
+
+The worst score that a Borrower can be assigned by Prosper is 1, and the best is 10. You can consequence of this fact by seeing the dispersion between the worst score and best score in the first graph. What is interesting is that not until 2013, does Prosper seem to give much incentive to the those who revieved an average score of 5 over those who recieved the worst scores in terms of APR. The only advantage of recieving a 5 over a 1 is that a borrower is more likely to get approved for the loan given by the fact that there are some missing APR for worst score. In 2013 (for the most part) those who recieved a score of 5 recieved an average APR equally between the worst scores and the best scores. This rebalance in APR can potentially attract more average Borrowers and can explain for the increase in number of borrowers in 2013 (as can be seen by the graph on page 3). The bottom graph shows the same idea for the different length of loan. In addition it shows an advantage of recieving the best score. Borrowers who are seeking a short term loan recieve a lower APR rate on average.  
+
+\pagebreak
+
+# Student Data
+
+
+```{r, echo = F, message = F, warning = F, fig.width = 8, fig.length = 5}
+occup_subset1 <- c("Student - College Freshman", "Student - College Sophomore", 
+                   "Student - College Junior", "Student - College Senior",
+                   "Student - College Graduate Student", "Student - Community College",
+                   "Student - Technical School")
+
+renamed_occup <- c("College Freshman", "College Sophomore", 
+                   "College Junior", "College Senior",
+                   "Graduate Student", "Community College",
+                   "Technical School")
+
+var <- c("Occupation", "dates", "year", "ListingCategory..numeric.", "LoanOriginalAmount")
+df_subset1 <- subset(df, Occupation %in% occup_subset1)
+df_subset1 <- df_subset1[df_subset1$dates < "2014-01-01", ] # remove 2014 data
+
+df_subset1$Occupation <- as.character(df_subset1$Occupation)
+df_subset1$Occupation <- as.factor(df_subset1$Occupation)
+df_subset1$Occupation <- factor(df_subset1$Occupation,
+                                levels(df_subset1$Occupation)[c(1,5,3,4,2,6,7)])
+levels(df_subset1$Occupation) <- renamed_occup
+
+df_subset1$student_use <- (df_subset1$ListingCategory..numeric. == 5)
+
+p <- ggplot(df_subset1, aes(x = Occupation, y = LoanOriginalAmount, 
+                            fill = Occupation)) 
+p <- p + geom_boxplot()
+p <- p + geom_point()
+p <- p +  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+p <- p + labs(x = "Student Status", y = "Loan Amount ($)", 
+              fill = "student status")
+p <- p + ggtitle("Box Plot of Loan Size Borrowed by Students")
+p <- p + theme_bw()
+p <- p + theme(axis.text.x = element_text(angle = 25, hjust = 1))
+p
+```
+
+From the box plot above, it can be seen that the median loan borrowed by students is about the same (around $2500). The variance is also almost similar with college seniors, graduate students, and technical students having more spread in the IQR. This can be explained by the fact that older students are more independent and recieve less fundings from their parents, so they need to seek another means of paying for their education. The higher spread in graduate students can be explained by the fact the master's program tend to have a wider variation in tuition cost than undergraduate programs. But is tuition truly the factor driving these range? If so, why are community college student receiving the same amount of loan as the others even though community college are known to be cheaper? To explore what students are using the funds for, examine the barplot on the next page. 
+\pagebreak
+
+```{r, echo = F, message = F, warning = F}
+df_subset1$Occupation <- factor(df_subset1$Occupation,
+                                levels(df_subset1$Occupation)[c(7,6,5,4,3,2,1)])
+p2 <- ggplot(df_subset1, aes(x = Occupation, fill = as.factor(student_use))) 
+p2 <- p2 + geom_bar()  
+p2 <- p2 + coord_flip() 
+p2 <- p2 + facet_wrap(~year)
+p2 <- p2 + labs(x = "Student Status", y = "Number of Unique Loans", 
+              fill = "Loans for student use")
+p2 <- p2 + ggtitle("Student's Loan Usage (2006-2013)")
+p2
+```
+
+Mainly, students claims to borrow funds for non-student use. And only in 2007 - 2010 period do students take out loans for student use. This can be a result of family hardship during the financial crisis. Interestingly, community college students have never recieved loans for student use.  
+
